@@ -1240,7 +1240,6 @@ let masterGain = null;
 let activeNodes = [];      // currently playing sound nodes
 let progressInterval = null;
 let elapsedSeconds = 0;
-let audioReady = false;
 
 const domProgressWrap = $('#musicProgressWrap');
 const domProgressFill = $('#progressFill');
@@ -1250,35 +1249,36 @@ const domProgressDur = $('#progressDuration');
 // Pentatonic scale frequencies for wind chimes
 const PENTATONIC = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5, 1174.7];
 
-// iOS requires AudioContext to be created in a direct user gesture
-function initAudio() {
-  if (audioReady) return;
+// iOS audio unlock — must happen in direct user gesture
+function unlockAudio() {
+  if (audioCtx) return;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = STATE.music.volume / 100;
     masterGain.connect(audioCtx.destination);
+    // Play a silent sound to unlock iOS audio
+    const buf = audioCtx.createBuffer(1, 1, 22050);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+    src.onended = () => { src.disconnect(); };
     if (audioCtx.state === 'suspended') {
-      audioCtx.resume().then(() => {
-        audioReady = true;
-      }).catch(() => {});
-    } else {
-      audioReady = true;
+      audioCtx.resume();
     }
   } catch(e) {
-    console.log('Audio init error:', e);
+    console.log('Audio unlock error:', e);
   }
 }
+// Unlock on any first touch/click — this is REQUIRED by iOS
+document.addEventListener('touchstart', unlockAudio, { once: true });
+document.addEventListener('click', unlockAudio, { once: true });
 
-// Initialize audio on first user touch/click anywhere
-document.addEventListener('touchstart', initAudio, { once: true });
-document.addEventListener('click', initAudio, { once: true });
-
-async function getAudioCtx() {
-  if (!audioCtx) initAudio();
+function getAudioCtx() {
+  if (!audioCtx) unlockAudio();
   if (audioCtx && audioCtx.state === 'suspended') {
-    try { await audioCtx.resume(); } catch(e) {}
-    audioReady = true;
+    audioCtx.resume();
   }
   return audioCtx;
 }
@@ -1292,8 +1292,8 @@ function stopAllSounds() {
 }
 
 /* ---- White Noise Generator ---- */
-async function startWhiteNoise() {
-  const ctx = await getAudioCtx();
+function startWhiteNoise() {
+  const ctx = getAudioCtx();
   const bufferSize = ctx.sampleRate * 2;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -1321,8 +1321,8 @@ async function startWhiteNoise() {
 }
 
 /* ---- Rain Sound ---- */
-async function startRain() {
-  const ctx = await getAudioCtx();
+function startRain() {
+  const ctx = getAudioCtx();
   // Layer 1: steady rain (filtered noise)
   const bufferSize = ctx.sampleRate * 3;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -1373,8 +1373,8 @@ async function startRain() {
 }
 
 /* ---- Fireplace Sound ---- */
-async function startFireplace() {
-  const ctx = await getAudioCtx();
+function startFireplace() {
+  const ctx = getAudioCtx();
   const bufferSize = ctx.sampleRate * 2;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -1427,8 +1427,8 @@ async function startFireplace() {
 }
 
 /* ---- Ocean Waves ---- */
-async function startOcean() {
-  const ctx = await getAudioCtx();
+function startOcean() {
+  const ctx = getAudioCtx();
   const bufferSize = ctx.sampleRate * 4;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -1467,8 +1467,8 @@ async function startOcean() {
 }
 
 /* ---- Wind Chimes ---- */
-async function startChimes() {
-  const ctx = await getAudioCtx();
+function startChimes() {
+  const ctx = getAudioCtx();
   let lastTime = ctx.currentTime;
 
   function scheduleChime() {
@@ -1578,11 +1578,11 @@ function loadTrack(trackKey) {
   showToast('\u{1F3B5} ' + TRACKS[trackKey].name + ' — ' + TRACKS[trackKey].desc);
 }
 
-async function toggleMusic() {
+function toggleMusic() {
   STATE.music.playing = !STATE.music.playing;
 
   if (STATE.music.playing) {
-    await getAudioCtx();
+    getAudioCtx();
     const starter = SOUND_STARTERS[STATE.music.track];
     if (starter) starter();
     domBtnMusicToggle.textContent = '⏸';
