@@ -1277,9 +1277,8 @@ function unlockIOSAudio() {
     }).catch(() => {});
   }
 }
-document.addEventListener('touchstart', unlockIOSAudio, { once: false });
-document.addEventListener('touchend', unlockIOSAudio, { once: false });
-document.addEventListener('click', unlockIOSAudio, { once: false });
+document.addEventListener('touchend', unlockIOSAudio, { passive: true });
+document.addEventListener('click', unlockIOSAudio, { passive: true });
 
 function getAudioCtx() {
   if (!audioUnlocked) unlockIOSAudio();
@@ -1592,11 +1591,19 @@ function toggleMusic() {
   STATE.music.playing = !STATE.music.playing;
 
   if (STATE.music.playing) {
-    getAudioCtx();
-    const starter = SOUND_STARTERS[STATE.music.track];
-    if (starter) starter();
-    domBtnMusicToggle.textContent = '⏸';
-    startProgress();
+    const ctx = getAudioCtx();
+    // iOS: 必须等 resume() 完成后再开始播放声音
+    function startSounds() {
+      const starter = SOUND_STARTERS[STATE.music.track];
+      if (starter) starter();
+      domBtnMusicToggle.textContent = '⏸';
+      startProgress();
+    }
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().then(startSounds).catch(startSounds);
+    } else {
+      startSounds();
+    }
   } else {
     stopAllSounds();
     domBtnMusicToggle.textContent = '▶';
