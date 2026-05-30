@@ -135,19 +135,46 @@ body {
 }
 
 /* ============================================================
-   FOCUS MODE — auto-hide UI when music playing
+   FOCUS MODE — 7秒无操作后进入沉浸态
    ============================================================ */
-.app-wrapper.focus-mode .app-header,
-.app-wrapper.focus-mode .glass-panel,
-.app-wrapper.focus-mode .scene-selector {
-  opacity: 0;
+/* 时钟始终清晰 */
+.app-wrapper.idle .clock-time,
+.app-wrapper.idle .clock-date {
+  transition: opacity 0.8s var(--ease-apple), transform 0.8s var(--ease-apple);
+}
+/* 面板和选择器：半透明 + 轻微模糊 + 下沉 */
+.app-wrapper.idle .glass-panel {
+  opacity: 0.18;
+  filter: blur(2px);
+  transform: translateY(6px);
   pointer-events: none;
+  transition: opacity 0.8s var(--ease-apple),
+              filter 0.8s var(--ease-apple),
+              transform 0.8s var(--ease-apple);
+}
+.app-wrapper.idle .scene-selector {
+  opacity: 0.18;
+  filter: blur(1.5px);
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.8s var(--ease-apple),
+              filter 0.8s var(--ease-apple),
+              transform 0.8s var(--ease-apple);
+}
+/* 头部（时钟+选择器容器）保留，但选择器变淡 */
+.app-wrapper.idle .app-header {
   transition: opacity 0.8s var(--ease-apple);
 }
 /* Toast 始终可见 */
-.app-wrapper.focus-mode .toast {
+.app-wrapper.idle .toast {
   opacity: 1 !important;
-  pointer-events: none;
+  filter: none !important;
+  transform: none !important;
+}
+/* 沉浸态：减少背景遮罩，图片更清晰 */
+body.idle-mode .bg-overlay {
+  background: radial-gradient(ellipse at 50% 30%, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.25) 100%);
+  transition: background 0.8s var(--ease-apple);
 }
 
 /* ============================================================
@@ -1604,7 +1631,7 @@ function loadTrack(trackKey) {
     if (starter) {
       starter();
       startProgress();
-      startFocusTimer();
+      resetIdleTimer();
     }
   }
 
@@ -1631,12 +1658,12 @@ function toggleMusic() {
     if (starter) starter();
     domBtnMusicToggle.textContent = '⏸';
     startProgress();
-    startFocusTimer();  // 7s后自动隐藏UI
+    resetIdleTimer();
   } else {
     stopAllSounds();
     domBtnMusicToggle.textContent = '▶';
     stopProgress();
-    clearFocusTimer();  // 停止音乐时显示UI
+    resetIdleTimer();  // 停止音乐时立即显示UI
   }
   setVolume(STATE.music.volume);
   saveState();
@@ -1660,35 +1687,33 @@ $$('.track-btn').forEach(btn => {
 domBtnMusicToggle.addEventListener('click', toggleMusic);
 domVolumeSlider.addEventListener('input', () => setVolume(parseInt(domVolumeSlider.value)));
 
-// ── Focus Mode: 音乐播放7秒后自动隐藏UI ──────────────────
-let focusTimer = null;
+// ── Focus Mode: 7秒无操作 → 沉浸态（高级半透明模糊）──
+let idleTimer = null;
 const domAppWrapper = document.querySelector('.app-wrapper');
 
-function startFocusTimer() {
-  clearFocusTimer();
-  if (!STATE.music.playing) return;
-  focusTimer = setTimeout(() => {
-    domAppWrapper.classList.add('focus-mode');
+function resetIdleTimer() {
+  domAppWrapper.classList.remove('idle');
+  document.body.classList.remove('idle-mode');
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    domAppWrapper.classList.add('idle');
+    document.body.classList.add('idle-mode');
   }, 7000);
 }
 
-function clearFocusTimer() {
-  if (focusTimer) { clearTimeout(focusTimer); focusTimer = null; }
-  domAppWrapper.classList.remove('focus-mode');
+function onUserActivity(e) {
+  // 不响应：输入框焦点、toast点击
+  if (e.target.tagName === 'INPUT') return;
+  resetIdleTimer();
 }
 
-function onUserActivity() {
-  clearFocusTimer();
-  if (STATE.music.playing) startFocusTimer();
-}
-
-// 音乐开始 → 启动7s倒计时
-function startMusicWithFocus() { startFocusTimer(); }
-function stopMusicWithFocus() { clearFocusTimer(); }
-
-// 任意触摸/点击 → 显示UI + 重置倒计时
+// 所有交互都重置计时器
 document.addEventListener('touchstart', onUserActivity, { passive: true });
 document.addEventListener('click', onUserActivity, { passive: true });
+document.addEventListener('scroll', onUserActivity, { passive: true });
+
+// 页面加载即启动计时器
+resetIdleTimer();
 
 // ── Todo List ──────────────────────────────────────────────
 function renderTodos() {
