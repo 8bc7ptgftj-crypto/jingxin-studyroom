@@ -1185,20 +1185,29 @@ $$('.mode-btn').forEach(btn => {
   });
 });
 
-// Custom time input
-[domCustomMin, domCustomSec].forEach(input => {
-  input.addEventListener('input', () => {
-    if (STATE.timer.mode !== 'countdown' || STATE.timer.status === 'running') return;
-    const m = parseInt(domCustomMin.value) || 0;
-    const s = parseInt(domCustomSec.value) || 0;
-    const total = Math.min(m * 60 + s, 7200); // max 2 hours
-    setTimerTotal(Math.max(total, 10)); // min 10 seconds
-    domCustomMin.value = Math.floor(STATE.timer.totalSeconds / 60);
-    domCustomSec.value = STATE.timer.totalSeconds % 60;
-    STATE.timer.totalSeconds = Math.max(total, 10);
-    saveState();
-  });
-});
+// Custom time input — use both input (实时预览) and change (确认)
+function applyCustomTime() {
+  if (STATE.timer.mode !== 'countdown' || STATE.timer.status === 'running') return;
+  let m = parseInt(domCustomMin.value) || 0;
+  let s = parseInt(domCustomSec.value) || 0;
+  // 处理溢出：秒>59进位到分钟
+  if (s > 59) { m += Math.floor(s / 60); s = s % 60; }
+  if (m > 120) m = 120;
+  const total = Math.min(m * 60 + s, 7200);
+  const final = Math.max(total, 5);
+  STATE.timer.totalSeconds = final;
+  STATE.timer.remainingSeconds = final;
+  updateTimeDisplay();
+  updateRingProgress();
+  // 回写规范化后的值
+  domCustomMin.value = Math.floor(final / 60);
+  domCustomSec.value = final % 60;
+  saveState();
+}
+domCustomMin.addEventListener('input', applyCustomTime);
+domCustomMin.addEventListener('blur', applyCustomTime);
+domCustomSec.addEventListener('input', applyCustomTime);
+domCustomSec.addEventListener('blur', applyCustomTime);
 
 // Click time display to edit Pomodoro durations
 domTimeDisplay.addEventListener('click', () => {
@@ -1591,19 +1600,20 @@ function toggleMusic() {
   STATE.music.playing = !STATE.music.playing;
 
   if (STATE.music.playing) {
-    const ctx = getAudioCtx();
-    // iOS: 必须等 resume() 完成后再开始播放声音
-    function startSounds() {
-      const starter = SOUND_STARTERS[STATE.music.track];
-      if (starter) starter();
-      domBtnMusicToggle.textContent = '⏸';
-      startProgress();
+    // 必须在用户手势中同步创建 AudioContext（iOS 强制要求）
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = STATE.music.volume / 100;
+      masterGain.connect(audioCtx.destination);
     }
-    if (ctx && ctx.state === 'suspended') {
-      ctx.resume().then(startSounds).catch(startSounds);
-    } else {
-      startSounds();
-    }
+    // 同步调用 resume（iOS 在手势中调用即可解锁）
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    // 立即创建声音节点（同步操作，iOS 会在 resume 完成后自动输出）
+    const starter = SOUND_STARTERS[STATE.music.track];
+    if (starter) starter();
+    domBtnMusicToggle.textContent = '⏸';
+    startProgress();
   } else {
     stopAllSounds();
     domBtnMusicToggle.textContent = '▶';
