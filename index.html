@@ -82,7 +82,7 @@
 /* Reset & Base */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; overflow: hidden; }
+html, body { height: 100%; overflow-x: hidden; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
@@ -104,11 +104,19 @@ body {
   inset: 0;
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
   transition: opacity var(--dur-slow) var(--ease-apple),
               transform 1.2s var(--ease-apple);
   will-change: opacity, transform;
   z-index: 0;
+  /* iOS Safari fix: use transform hack to force GPU rendering */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
+/* 森林：确保阳光穿透的树冠部分可见 */
+#bg-forest { background-position: 50% 40%; }
+/* 雨天：确保雨滴窗景居中 */
+#bg-rain { background-position: 50% 45%; }
 .bg-layer.active   { opacity: 1; transform: scale(1); z-index: 1; }
 .bg-layer.inactive { opacity: 0; transform: scale(1.06); z-index: 0; }
 
@@ -126,25 +134,26 @@ body {
 .app-wrapper {
   position: relative;
   z-index: 2;
-  height: 100vh;
-  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 30px;
+  justify-content: flex-start;
+  padding: 40px 30px 60px;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  gap: var(--gap-xl);
 }
 
 .app-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--gap-lg);
-  margin-bottom: var(--gap-xl);
+  gap: var(--gap-md);
   flex-shrink: 0;
+  padding-top: var(--gap-md);
 }
 
 /* ============================================================
@@ -651,45 +660,85 @@ body {
 .toast.show { transform: translateX(-50%) translateY(0); }
 
 /* ============================================================
-   RESPONSIVE
+   RESPONSIVE — Mobile-first (iPhone optimized)
    ============================================================ */
-@media (max-width: 768px) {
+
+/* Default: iPhone / small screen (single column) */
+.dashboard {
+  grid-template-columns: 1fr;
+  max-width: 440px;
+  gap: var(--gap-md);
+}
+:root {
+  --ring-size: 200px;
+  --ring-stroke: 4px;
+  --radius-widget: 20px;
+}
+.time-display { font-size: 42px; }
+.glass-panel { padding: 18px; }
+.app-wrapper { padding: 16px; padding-top: 60px; }
+.app-header { gap: var(--gap-md); }
+.clock-time { font-size: 48px; }
+.scene-btn { width: 38px; height: 38px; font-size: 16px; }
+.btn { padding: 10px 18px; font-size: 13px; }
+.track-btn { padding: 7px 13px; font-size: 12px; }
+.todo-panel { max-height: 260px; min-height: 180px; }
+.ring-svg { filter: none; }
+
+/* Larger phone / small tablet */
+@media (min-width: 480px) {
+  .time-display { font-size: 50px; }
+  .clock-time { font-size: 56px; }
+  :root { --ring-size: 230px; }
+  .glass-panel { padding: 22px; }
+  .app-wrapper { padding: 20px; padding-top: 40px; }
+}
+
+/* Tablet / Desktop (2 columns) */
+@media (min-width: 768px) {
   .dashboard {
-    grid-template-columns: 1fr;
-    max-width: 400px;
-    gap: var(--gap-md);
+    grid-template-columns: 1fr 1fr;
+    max-width: 760px;
+    gap: var(--gap-lg);
   }
   :root {
-    --ring-size: 200px;
-    --ring-stroke: 4px;
+    --ring-size: 240px;
+    --ring-stroke: 5px;
+    --radius-widget: 24px;
   }
-  .time-display { font-size: 42px; }
-  .glass-panel { padding: var(--padding-section); }
-  .app-wrapper { padding: 20px; }
-  .app-header { margin-bottom: var(--gap-lg); gap: var(--gap-md); }
-  .clock-time { font-size: 46px; }
+  .time-display { font-size: 50px; }
+  .glass-panel { padding: var(--padding-widget); }
+  .app-wrapper {
+    padding: 30px;
+    padding-top: 30px;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .clock-time { font-size: 80px; }
+  .todo-panel { max-height: 340px; min-height: 220px; }
+  .scene-btn { width: 40px; height: 40px; font-size: 17px; }
 }
 
-@media (max-width: 480px) {
-  :root {
-    --ring-size: 170px;
-    --ring-stroke: 4px;
-  }
-  .time-display { font-size: 36px; }
-  .glass-panel { padding: 16px; }
-  .app-wrapper { padding: 12px; justify-content: flex-start; padding-top: 40px; }
-  .app-header { margin-bottom: var(--gap-md); gap: var(--gap-sm); }
-  .clock-time { font-size: 38px; }
-  .scene-btn { width: 36px; height: 36px; font-size: 15px; }
-  .btn { padding: 9px 16px; font-size: 12px; }
-  .track-btn { padding: 6px 11px; font-size: 11px; }
-  .dashboard { gap: var(--gap-sm); }
+/* Large desktop */
+@media (min-width: 1024px) {
+  .dashboard { max-width: 800px; }
+  :root { --ring-size: 260px; }
 }
 
+/* iPhone safe area (notch + home indicator) */
 @supports (padding-top: env(safe-area-inset-top)) {
   .app-wrapper {
-    padding-top: max(30px, env(safe-area-inset-top));
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: calc(60px + env(safe-area-inset-top));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  @media (min-width: 768px) {
+    .app-wrapper {
+      padding-top: calc(30px + env(safe-area-inset-top));
+      padding-bottom: calc(30px + env(safe-area-inset-bottom));
+    }
   }
 }
 </style>
@@ -1191,6 +1240,7 @@ let masterGain = null;
 let activeNodes = [];      // currently playing sound nodes
 let progressInterval = null;
 let elapsedSeconds = 0;
+let audioReady = false;
 
 const domProgressWrap = $('#musicProgressWrap');
 const domProgressFill = $('#progressFill');
@@ -1200,14 +1250,36 @@ const domProgressDur = $('#progressDuration');
 // Pentatonic scale frequencies for wind chimes
 const PENTATONIC = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5, 1174.7];
 
-function getAudioCtx() {
-  if (!audioCtx) {
+// iOS requires AudioContext to be created in a direct user gesture
+function initAudio() {
+  if (audioReady) return;
+  try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = STATE.music.volume / 100;
     masterGain.connect(audioCtx.destination);
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume().then(() => {
+        audioReady = true;
+      }).catch(() => {});
+    } else {
+      audioReady = true;
+    }
+  } catch(e) {
+    console.log('Audio init error:', e);
   }
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+// Initialize audio on first user touch/click anywhere
+document.addEventListener('touchstart', initAudio, { once: true });
+document.addEventListener('click', initAudio, { once: true });
+
+async function getAudioCtx() {
+  if (!audioCtx) initAudio();
+  if (audioCtx && audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch(e) {}
+    audioReady = true;
+  }
   return audioCtx;
 }
 
@@ -1220,8 +1292,8 @@ function stopAllSounds() {
 }
 
 /* ---- White Noise Generator ---- */
-function startWhiteNoise() {
-  const ctx = getAudioCtx();
+async function startWhiteNoise() {
+  const ctx = await getAudioCtx();
   const bufferSize = ctx.sampleRate * 2;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -1249,8 +1321,8 @@ function startWhiteNoise() {
 }
 
 /* ---- Rain Sound ---- */
-function startRain() {
-  const ctx = getAudioCtx();
+async function startRain() {
+  const ctx = await getAudioCtx();
   // Layer 1: steady rain (filtered noise)
   const bufferSize = ctx.sampleRate * 3;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -1301,8 +1373,8 @@ function startRain() {
 }
 
 /* ---- Fireplace Sound ---- */
-function startFireplace() {
-  const ctx = getAudioCtx();
+async function startFireplace() {
+  const ctx = await getAudioCtx();
   const bufferSize = ctx.sampleRate * 2;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -1355,8 +1427,8 @@ function startFireplace() {
 }
 
 /* ---- Ocean Waves ---- */
-function startOcean() {
-  const ctx = getAudioCtx();
+async function startOcean() {
+  const ctx = await getAudioCtx();
   const bufferSize = ctx.sampleRate * 4;
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -1395,8 +1467,8 @@ function startOcean() {
 }
 
 /* ---- Wind Chimes ---- */
-function startChimes() {
-  const ctx = getAudioCtx();
+async function startChimes() {
+  const ctx = await getAudioCtx();
   let lastTime = ctx.currentTime;
 
   function scheduleChime() {
@@ -1506,11 +1578,11 @@ function loadTrack(trackKey) {
   showToast('\u{1F3B5} ' + TRACKS[trackKey].name + ' — ' + TRACKS[trackKey].desc);
 }
 
-function toggleMusic() {
+async function toggleMusic() {
   STATE.music.playing = !STATE.music.playing;
 
   if (STATE.music.playing) {
-    getAudioCtx();
+    await getAudioCtx();
     const starter = SOUND_STARTERS[STATE.music.track];
     if (starter) starter();
     domBtnMusicToggle.textContent = '⏸';
