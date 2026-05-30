@@ -9,6 +9,12 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0a0a">
 
+<!-- 预加载背景图片，避免切换时白屏 -->
+<link rel="preload" as="image" href="images/library.jpg">
+<link rel="preload" as="image" href="images/cafe.jpg">
+<link rel="preload" as="image" href="images/forest.jpg">
+<link rel="preload" as="image" href="images/rain.jpg">
+
 <!-- Apple PWA (iOS standalone mode) -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -745,6 +751,9 @@ body {
 </head>
 <body>
 
+<!-- iOS 音频解锁：播放静音WAV强制激活音频引擎 -->
+<audio id="iosAudioUnlock" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=" playsinline style="display:none"></audio>
+
 <!-- Background Layers -->
 <div class="bg-layer active" id="bg-library"
      style="background-image: url('images/library.jpg');"></div>
@@ -1249,37 +1258,38 @@ const domProgressDur = $('#progressDuration');
 // Pentatonic scale frequencies for wind chimes
 const PENTATONIC = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5, 1174.7];
 
-// iOS audio unlock — must happen in direct user gesture
-function unlockAudio() {
-  if (audioCtx) return;
-  try {
+// iOS audio unlock — use <audio> element trick (proven on all iOS versions)
+let audioUnlocked = false;
+function unlockIOSAudio() {
+  if (audioUnlocked) return;
+  const el = document.getElementById('iosAudioUnlock');
+  if (el) {
+    el.play().then(() => {
+      audioUnlocked = true;
+      // Now create Web Audio context
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = STATE.music.volume / 100;
+        masterGain.connect(audioCtx.destination);
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }).catch(() => {});
+  }
+}
+document.addEventListener('touchstart', unlockIOSAudio, { once: false });
+document.addEventListener('touchend', unlockIOSAudio, { once: false });
+document.addEventListener('click', unlockIOSAudio, { once: false });
+
+function getAudioCtx() {
+  if (!audioUnlocked) unlockIOSAudio();
+  if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = STATE.music.volume / 100;
     masterGain.connect(audioCtx.destination);
-    // Play a silent sound to unlock iOS audio
-    const buf = audioCtx.createBuffer(1, 1, 22050);
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(audioCtx.destination);
-    src.start(0);
-    src.onended = () => { src.disconnect(); };
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-  } catch(e) {
-    console.log('Audio unlock error:', e);
   }
-}
-// Unlock on any first touch/click — this is REQUIRED by iOS
-document.addEventListener('touchstart', unlockAudio, { once: true });
-document.addEventListener('click', unlockAudio, { once: true });
-
-function getAudioCtx() {
-  if (!audioCtx) unlockAudio();
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
-  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
 
