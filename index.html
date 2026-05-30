@@ -135,6 +135,22 @@ body {
 }
 
 /* ============================================================
+   FOCUS MODE — auto-hide UI when music playing
+   ============================================================ */
+.app-wrapper.focus-mode .app-header,
+.app-wrapper.focus-mode .glass-panel,
+.app-wrapper.focus-mode .scene-selector {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s var(--ease-apple);
+}
+/* Toast 始终可见 */
+.app-wrapper.focus-mode .toast {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+
+/* ============================================================
    MAIN LAYOUT — centered, spacious
    ============================================================ */
 .app-wrapper {
@@ -1588,6 +1604,7 @@ function loadTrack(trackKey) {
     if (starter) {
       starter();
       startProgress();
+      startFocusTimer();
     }
   }
 
@@ -1614,10 +1631,12 @@ function toggleMusic() {
     if (starter) starter();
     domBtnMusicToggle.textContent = '⏸';
     startProgress();
+    startFocusTimer();  // 7s后自动隐藏UI
   } else {
     stopAllSounds();
     domBtnMusicToggle.textContent = '▶';
     stopProgress();
+    clearFocusTimer();  // 停止音乐时显示UI
   }
   setVolume(STATE.music.volume);
   saveState();
@@ -1640,6 +1659,36 @@ $$('.track-btn').forEach(btn => {
 // Music controls
 domBtnMusicToggle.addEventListener('click', toggleMusic);
 domVolumeSlider.addEventListener('input', () => setVolume(parseInt(domVolumeSlider.value)));
+
+// ── Focus Mode: 音乐播放7秒后自动隐藏UI ──────────────────
+let focusTimer = null;
+const domAppWrapper = document.querySelector('.app-wrapper');
+
+function startFocusTimer() {
+  clearFocusTimer();
+  if (!STATE.music.playing) return;
+  focusTimer = setTimeout(() => {
+    domAppWrapper.classList.add('focus-mode');
+  }, 7000);
+}
+
+function clearFocusTimer() {
+  if (focusTimer) { clearTimeout(focusTimer); focusTimer = null; }
+  domAppWrapper.classList.remove('focus-mode');
+}
+
+function onUserActivity() {
+  clearFocusTimer();
+  if (STATE.music.playing) startFocusTimer();
+}
+
+// 音乐开始 → 启动7s倒计时
+function startMusicWithFocus() { startFocusTimer(); }
+function stopMusicWithFocus() { clearFocusTimer(); }
+
+// 任意触摸/点击 → 显示UI + 重置倒计时
+document.addEventListener('touchstart', onUserActivity, { passive: true });
+document.addEventListener('click', onUserActivity, { passive: true });
 
 // ── Todo List ──────────────────────────────────────────────
 function renderTodos() {
